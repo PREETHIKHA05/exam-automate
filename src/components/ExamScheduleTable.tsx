@@ -15,7 +15,14 @@ export const ExamScheduleTable: React.FC<ExamScheduleTableProps> = ({ exams, sch
   // Group exams by date and department
   const examsByDateAndDept = uniqueDates.reduce((acc, date) => {
     acc[date!] = departments.reduce((deptAcc, dept) => {
-      const exam = scheduledExams.find(e => e.examDate === date && e.department === dept.code);
+      // Match by department name or code
+      const exam = scheduledExams.find(e => {
+        const examDept = e.department?.trim().toLowerCase();
+        return e.examDate === date && (
+          examDept === dept.name.trim().toLowerCase() ||
+          examDept === dept.code.trim().toLowerCase()
+        );
+      });
       deptAcc[dept.code] = exam || null;
       return deptAcc;
     }, {} as Record<string, any>);
@@ -74,7 +81,7 @@ export const ExamScheduleTable: React.FC<ExamScheduleTableProps> = ({ exams, sch
                               {exam.assignedBy}
                             </div>
                             <div className="text-xs text-blue-600 font-medium">
-                              {exam.examTime}
+
                             </div>
                           </div>
                         ) : (

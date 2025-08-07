@@ -6,9 +6,11 @@ import { departmentService, Department } from '../services/departmentService';
 
 // Define departments for PDF generation (fallback if API fails)
 const defaultDepartments = [
+  { code: 'CE', name: 'Civil Engineering' },
+  { code: 'CS', name: 'Computer Science & Engineering' },
+  { code: 'EC', name: 'Electronics & Communication Engineering' },
   { code: 'IT', name: 'Information Technology' },
-  { code: 'CSE', name: 'Computer Science & Engineering' },
-  { code: 'AIDS', name: 'Artificial Intelligence & Data Science' }
+  { code: 'ME', name: 'Mechanical Engineering' }
 ];
 
 export const PDFGenerator: React.FC = () => {
@@ -27,6 +29,21 @@ export const PDFGenerator: React.FC = () => {
           examService.getScheduledExams(),
           departmentService.getAllDepartments()
         ]);
+        
+        console.log('Loaded exams:', exams);
+        console.log('Loaded departments:', deptData);
+        console.log('Sample exam data structure:', exams.length > 0 ? exams[0] : 'No exams');
+        
+        if (exams.length === 0) {
+          console.log('Warning: No exams returned from getScheduledExams()');
+        }
+        
+        // Log any exams without required fields
+        exams.forEach(exam => {
+          if (!exam.subjectName || !exam.subjectCode || !exam.department || !exam.examDate) {
+            console.log('Warning: Exam missing required fields:', exam);
+          }
+        });
         
         setScheduledExams(exams);
         
@@ -128,7 +145,7 @@ export const PDFGenerator: React.FC = () => {
       
       // Table header
       const tableStartY = yPosition;
-      const cellHeight = 10; // Increased height to accommodate time
+      const cellHeight = 8; // Reduced height since we removed time
       const dateColWidth = 25;
       const deptColWidth = (pageWidth - 40 - dateColWidth) / departments.length;
       const tableWidth = dateColWidth + (departments.length * deptColWidth);
@@ -167,11 +184,9 @@ export const PDFGenerator: React.FC = () => {
           if (subject) {
             // Split subject code and name for better fit
             const subjectCode = subject.code;
-            const subjectName = subject.name.substring(0, 8); // Truncate long names
-            const examTime = subject.time.substring(0, 5); // Format time (HH:MM)
-            pdf.text(subjectCode, xPos + 2, rowY + 2);
-            pdf.text(subjectName, xPos + 2, rowY + 5);
-            pdf.text(examTime, xPos + 2, rowY + 8);
+            const subjectName = subject.name.substring(0, 12); // Increased length since we removed time
+            pdf.text(subjectCode, xPos + 2, rowY + 3);
+            pdf.text(subjectName, xPos + 2, rowY + 7);
           } else {
             pdf.text('-', xPos + 2, rowY + 6);
           }
@@ -261,11 +276,28 @@ export const PDFGenerator: React.FC = () => {
     const scheduleData = [];
     const selectedSemester = getSemesterForYear(selectedYear);
     
+    console.log('All scheduled exams:', scheduledExams);
+    
     // Filter scheduled exams by year/semester
     const filteredExams = scheduledExams.filter(exam => {
-      // For now, we'll show all exams since the mock data doesn't have year filtering
-      // In a real implementation, you would filter by year/semester
-      return true;
+      console.log('Processing exam:', exam);
+      
+      if (!exam.subjectCode) {
+        console.log('No subject code for exam:', exam);
+        return false; // Skip exams without subject code
+      }
+
+      // Map year to semester numbers for matching
+      const yearToSemester = {
+        '2': [3, 4],    // II year - semesters 3 and 4
+        '3': [5, 6],    // III year - semesters 5 and 6
+        '4': [7, 8]     // IV year - semesters 7 and 8
+      };
+
+      // Return true if exam's semester matches the selected year's semesters
+      return exam.semester === undefined || 
+             yearToSemester[selectedYear]?.includes(exam.semester) ||
+             exam.year === parseInt(selectedYear);
     });
     
     // Determine the date range based on scheduled exams
@@ -304,13 +336,23 @@ export const PDFGenerator: React.FC = () => {
         
         // Assign subjects to departments
         departments.forEach((dept: { code: string; name: string }) => {
-          const examForDept = examsOnDate.find(exam => exam.department === dept.code);
+          console.log('Checking department:', dept.code, dept.name);
+          // Try to match by department name or code
+          const examForDept = examsOnDate.find(exam => {
+            const deptMatch = exam.department?.trim().toLowerCase() === dept.name.trim().toLowerCase() ||
+                            exam.department?.trim().toLowerCase() === dept.code.trim().toLowerCase();
+            if (deptMatch) {
+              console.log('Found match:', exam, 'for department:', dept.name);
+            }
+            return deptMatch;
+          });
+          
           if (examForDept) {
             subjects[dept.code] = {
-              code: examForDept.subjectCode,
-              name: examForDept.subjectName,
-              time: examForDept.examTime
+              code: examForDept.subjectCode || 'NO_CODE',
+              name: examForDept.subjectName || 'Untitled'
             };
+            console.log('Added subject for', dept.code, ':', subjects[dept.code]);
           }
         });
         
@@ -416,19 +458,29 @@ export const PDFGenerator: React.FC = () => {
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   <div className="flex items-start">
                     <Calendar className="h-5 w-5 text-green-600 mr-2 mt-0.5" />
-                    <div>
+                    <div className="w-full">
                       <h5 className="text-sm font-medium text-green-800">Scheduled Exams ({scheduledExams.length})</h5>
-                      <div className="text-sm text-green-700 mt-2 space-y-1">
+                      <div className="text-sm text-green-700 mt-2 space-y-2">
                         {scheduledExams.slice(0, 3).map((exam, index) => (
-                          <div key={exam.id} className="flex justify-between">
-                            <span>{exam.subjectName} ({exam.subjectCode})</span>
-                            <span className="text-green-600 font-medium">
-                              {new Date(exam.examDate).toLocaleDateString()} at {exam.examTime.substring(0, 5)}
-                            </span>
+                          <div key={exam.id} className="flex flex-col bg-white p-3 rounded-lg shadow-sm">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <span className="font-medium text-gray-900">{exam.subjectName}</span>
+                                <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                  {exam.subjectCode || 'No Code'}
+                                </span>
+                              </div>
+                              <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                {exam.department}
+                              </span>
+                            </div>
+                            <div className="mt-2 text-xs text-gray-600">
+                              <span>Date: {new Date(exam.examDate).toLocaleDateString()}</span>
+                            </div>
                           </div>
                         ))}
                         {scheduledExams.length > 3 && (
-                          <div className="text-green-600 font-medium">
+                          <div className="text-center py-2 text-sm text-green-600 font-medium">
                             +{scheduledExams.length - 3} more exams...
                           </div>
                         )}
@@ -436,9 +488,7 @@ export const PDFGenerator: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              )}
-
-              {scheduledExams.length === 0 && (
+              )}              {scheduledExams.length === 0 && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <div className="flex items-start">
                     <Calendar className="h-5 w-5 text-yellow-600 mr-2 mt-0.5" />

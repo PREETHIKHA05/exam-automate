@@ -381,23 +381,76 @@ export const AdminDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* Overview Tab */}
+              {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-900">Exam Schedule Overview</h2>
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-gray-900">Exam Schedule Overview</h2>
+                <div className="flex space-x-4">
+                  <button
+                    onClick={() => setActiveTab('pdf')}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>Generate PDF</span>
+                  </button>
+                </div>
+              </div>
               
-              {/* Scheduled Exams */}
+              {/* Quick Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-lg font-medium text-gray-900">Total Scheduled</h3>
+                    <Calendar className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <p className="text-3xl font-bold text-gray-900">{scheduledExams.length}</p>
+                  <p className="text-sm text-gray-600 mt-1">Active exam schedules</p>
+                </div>
+                
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-lg font-medium text-gray-900">Departments</h3>
+                    <Building className="h-6 w-6 text-green-600" />
+                  </div>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {new Set(scheduledExams.map(exam => exam.department)).size}
+                  </p>
+                  <p className="text-sm text-gray-600 mt-1">With active schedules</p>
+                </div>
+                
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-lg font-medium text-gray-900">Next Exam</h3>
+                    <Clock className="h-6 w-6 text-purple-600" />
+                  </div>
+                  {scheduledExams.length > 0 ? (
+                    <>
+                      <p className="text-xl font-bold text-gray-900">
+                        {new Date(scheduledExams[0].examDate).toLocaleDateString()}
+                      </p>
+
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-600">No upcoming exams</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Scheduled Exams List */}
               <div className="bg-white rounded-lg shadow-sm">
                 <div className="px-6 py-4 border-b border-gray-200">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-medium text-gray-900">Scheduled Exams ({scheduledExams.length})</h3>
+                    <h3 className="text-lg font-medium text-gray-900">
+                      Scheduled Exams by Department
+                    </h3>
                     <div className="flex items-center space-x-2">
                       <Clock className="h-5 w-5 text-blue-600" />
-                      <span className="text-sm text-gray-600">Latest Schedule</span>
+                      <span className="text-sm text-gray-600">Latest Updates</span>
                     </div>
                   </div>
                 </div>
-                
+
                 {scheduledExams.length === 0 ? (
                   <div className="px-6 py-8 text-center">
                     <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -407,7 +460,7 @@ export const AdminDashboard: React.FC = () => {
                 ) : (
                   <div className="divide-y divide-gray-200">
                     {scheduledExams.map((schedule) => (
-                      <div key={schedule.id} className="px-6 py-4">
+                      <div key={schedule.id} className="px-6 py-4 hover:bg-gray-50">
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
                             <div className="flex items-center space-x-3">
@@ -421,14 +474,25 @@ export const AdminDashboard: React.FC = () => {
                                 {schedule.department}
                               </span>
                             </div>
-                            <p className="text-sm text-gray-600 mt-1">
-                              Date: {new Date(schedule.examDate).toLocaleDateString()} • Time: {schedule.examTime}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Scheduled by: {schedule.assignedBy}
-                            </p>
+                            <div className="flex items-center space-x-4 mt-1">
+                              <p className="text-sm text-gray-600">
+                                <span className="font-medium">Date:</span> {new Date(schedule.examDate).toLocaleDateString()}
+                              </p>
+                              <p className="text-sm text-gray-600">
+
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                <span className="font-medium">Room:</span> {schedule.room || 'TBA'}
+                              </p>
+                            </div>
+                            <div className="flex items-center space-x-2 mt-2">
+                              <User className="h-4 w-4 text-gray-400" />
+                              <p className="text-xs text-gray-500">
+                                Scheduled by: {schedule.assignedBy}
+                              </p>
+                            </div>
                           </div>
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-4">
                             <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
                               Confirmed
                             </span>
@@ -439,12 +503,18 @@ export const AdminDashboard: React.FC = () => {
                   </div>
                 )}
               </div>
-              
-              <ExamScheduleTable exams={exams} scheduledExams={scheduledExams} />
-            </div>
-          )}
 
-          {/* PDF Generation Tab */}
+              {/* Department-wise Schedule Table */}
+              <div className="bg-white rounded-lg shadow-sm">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <h3 className="text-lg font-medium text-gray-900">Detailed Schedule</h3>
+                </div>
+                <div className="p-6">
+                  <ExamScheduleTable exams={exams} scheduledExams={scheduledExams} />
+                </div>
+              </div>
+            </div>
+          )}          {/* PDF Generation Tab */}
           {activeTab === 'pdf' && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-gray-900">Generate Examination Timetable PDF</h2>

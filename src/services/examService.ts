@@ -92,7 +92,7 @@ export const examService = {
   },
 
   // Schedule an exam with conflict checking and shared subject logic
-  async scheduleExam(subjectId: string, examDate: string, examTime: string, assignedBy: string): Promise<void> {
+  async scheduleExam(subjectId: string, examDate: string, assignedBy: string): Promise<void> {
     // Get the current department's ID based on the staff member or subject
     let currentDepartmentId: string;
     let subjectName: string;
@@ -191,7 +191,7 @@ export const examService = {
         departments!exam_schedules_department_id_fkey(*)
       `)
       .eq('exam_date', examDate)
-      .eq('exam_time', examTime)
+
       .eq('department_id', currentDepartmentId);
 
     if (conflictError) {
@@ -199,7 +199,7 @@ export const examService = {
     }
 
     if (timeConflicts && timeConflicts.length > 0) {
-      throw new Error(`Conflict detected: Department already has an exam scheduled on ${examDate} at ${examTime}`);
+      throw new Error(`Conflict detected: Department already has an exam scheduled on ${examDate}`);
     }
 
     // Check if this is a staff-subject ID (from staff_details table)
@@ -362,17 +362,44 @@ export const examService = {
         });
       }
 
-      // Create all exam schedules in a single transaction
-      const { error: scheduleError } = await supabase
-        .from('exam_schedules')
-        .insert(schedulesToCreate);
+      // Check for existing schedules and update them if they exist
+      for (const schedule of schedulesToCreate) {
+        const { data: existingSchedule } = await supabase
+          .from('exam_schedules')
+          .select('*')
+          .eq('subject_id', schedule.subject_id)
+          .eq('department_id', schedule.department_id)
+          .maybeSingle();
 
-      if (scheduleError) {
-        throw new Error(`Failed to schedule exams: ${scheduleError.message}`);
+        if (existingSchedule) {
+          // Update existing schedule
+          const { error: updateError } = await supabase
+            .from('exam_schedules')
+            .update({
+              exam_date: schedule.exam_date,
+              exam_time: schedule.exam_time,
+              assigned_by: schedule.assigned_by,
+              priority_department: schedule.priority_department
+            })
+            .eq('id', existingSchedule.id);
+
+          if (updateError) {
+            throw new Error(`Failed to update exam schedule: ${updateError.message}`);
+          }
+        } else {
+          // Create new schedule
+          const { error: insertError } = await supabase
+            .from('exam_schedules')
+            .insert([schedule]);
+
+          if (insertError) {
+            throw new Error(`Failed to create exam schedule: ${insertError.message}`);
+          }
+        }
       }
 
       // Notify other departments about the shared subject scheduling
-      await this.notifySharedSubjectScheduling(staffData.subject_name, examDate, examTime, staffData.department);
+      await this.notifySharedSubjectScheduling(staffData.subject_name, examDate, staffData.department);
     } else {
       // Handle regular subject_detail table subjects (existing logic)
       const { data: subjects, error: subjectError } = await supabase
@@ -390,21 +417,45 @@ export const examService = {
 
       const subject = subjects[0];
 
-             // Create the exam schedule
-       const { error: scheduleError } = await supabase
-         .from('exam_schedules')
-         .insert([{
-           subject_id: subjectId,
-           exam_date: examDate,
-           exam_time: examTime,
-           department_id: '68b9d385-c948-490e-86c3-dc9e4d24a94e', // Computer Science default
-           assigned_by: assignedBy,
-           priority_department: null,
-         }]);
+      // Check if schedule already exists
+      const { data: existingSchedule } = await supabase
+        .from('exam_schedules')
+        .select('*')
+        .eq('subject_id', subjectId)
+        .eq('department_id', currentDepartmentId)
+        .maybeSingle();
 
-       if (scheduleError) {
-         throw new Error(scheduleError.message);
-       }
+      if (existingSchedule) {
+        // Update existing schedule
+        const { error: updateError } = await supabase
+          .from('exam_schedules')
+          .update({
+            exam_date: examDate,
+            exam_time: examTime,
+            assigned_by: assignedBy
+          })
+          .eq('id', existingSchedule.id);
+
+        if (updateError) {
+          throw new Error(`Failed to update exam schedule: ${updateError.message}`);
+        }
+      } else {
+        // Create new schedule
+        const { error: scheduleError } = await supabase
+          .from('exam_schedules')
+          .insert([{
+            subject_id: subjectId,
+            exam_date: examDate,
+            exam_time: examTime,
+            department_id: currentDepartmentId,
+            assigned_by: assignedBy,
+            priority_department: null,
+          }]);
+
+        if (scheduleError) {
+          throw new Error(`Failed to create exam schedule: ${scheduleError.message}`);
+        }
+      }
     }
   },
 
@@ -418,7 +469,7 @@ export const examService = {
         departments!exam_schedules_department_id_fkey(*)
       `)
       .order('exam_date', { ascending: true })
-      .order('exam_time', { ascending: true });
+      .order('exam_date', { ascending: true });
 
     if (error) {
       throw new Error(error.message);
@@ -431,7 +482,7 @@ export const examService = {
       subjectCode: schedule.subject_detail?.subcode || 'Unknown',
       department: schedule.departments?.name || 'Unknown',
       examDate: schedule.exam_date,
-      examTime: schedule.exam_time,
+
       assignedBy: schedule.assigned_by,
       priorityDepartment: schedule.priority_department,
     }));
@@ -637,7 +688,7 @@ export const examService = {
   },
 
   // Notify other departments about shared subject scheduling
-  async notifySharedSubjectScheduling(subjectName: string, examDate: string, examTime: string, scheduledByDepartment: string): Promise<void> {
+  async notifySharedSubjectScheduling(subjectName: string, examDate: string, scheduledByDepartment: string): Promise<void> {
     try {
       // Find all staff members teaching the same subject in other departments
       const { data: otherStaff, error: staffError } = await supabase
@@ -652,7 +703,7 @@ export const examService = {
       }
 
       if (otherStaff && otherStaff.length > 0) {
-        console.log(`📢 Shared Subject Notification: "${subjectName}" has been scheduled on ${examDate} at ${examTime} by ${scheduledByDepartment} department.`);
+        console.log(`📢 Shared Subject Notification: "${subjectName}" has been scheduled on ${examDate} by ${scheduledByDepartment} department.`);
         console.log(`📋 Other departments teaching this subject:`, otherStaff.map(staff => `${staff.department} (${staff.name})`));
         
         // In a real application, you would send emails/notifications here

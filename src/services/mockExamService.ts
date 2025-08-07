@@ -35,7 +35,7 @@ export const mockExamService = {
   },
 
   // Schedule an exam with constraint checking
-  async scheduleExam(subjectId: string, examDate: string, examTime: string, assignedBy: string): Promise<{ success: boolean; message: string; forcedSchedules?: any[] }> {
+  async scheduleExam(subjectId: string, examDate: string, assignedBy: string): Promise<{ success: boolean; message: string; forcedSchedules?: any[] }> {
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 500));
 
@@ -49,11 +49,11 @@ export const mockExamService = {
 
     // Check for time conflicts (same date and time)
     const timeConflicts = mockScheduledExams.filter(schedule => 
-      schedule.examDate === examDate && schedule.examTime === examTime
+      schedule.examDate === examDate
     );
     
     if (timeConflicts.length > 0) {
-      throw new Error(`Conflict detected: Another exam is already scheduled on ${examDate} at ${examTime}`);
+      throw new Error(`Conflict detected: Another exam is already scheduled on ${examDate}`);
     }
 
     // Check for same subject name constraint
@@ -88,7 +88,7 @@ export const mockExamService = {
             subjectCode: deptSubject.subjectCode,
             department: deptSubject.department,
             examDate: examDate,
-            examTime: examTime,
+
             assignedBy: 'System (Auto-scheduled due to constraint)',
             isShared: true,
             priorityDepartment: subject.department,
@@ -110,7 +110,7 @@ export const mockExamService = {
       subjectCode: subject.subjectCode,
       department: subject.department,
       examDate: examDate,
-      examTime: examTime,
+
       assignedBy: assignedBy,
       isShared: false,
       priorityDepartment: null,
@@ -150,7 +150,7 @@ export const mockExamService = {
       subjectCode: schedule.subjectCode,
       department: schedule.department,
       examDate: schedule.examDate,
-      examTime: schedule.examTime,
+
       assignedBy: schedule.assignedBy,
       isShared: schedule.isShared,
       priorityDepartment: schedule.priorityDepartment,

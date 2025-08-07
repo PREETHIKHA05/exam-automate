@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Edit, Trash2, Calendar, Clock, AlertCircle, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Calendar, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import { subjectService, Subject } from '../services/subjectService';
 import { examService } from '../services/examService';
 
 interface SubjectWithSchedule extends Subject {
   isScheduled: boolean;
   scheduledDate?: string;
-  scheduledTime?: string;
   assignedBy?: string;
 }
 
@@ -38,7 +37,6 @@ export const SubjectManagement: React.FC = () => {
       scheduledExams.forEach(schedule => {
         scheduledMap.set(schedule.subjectId, {
           date: schedule.examDate,
-          time: schedule.examTime,
           assignedBy: schedule.assignedBy
         });
       });
@@ -48,7 +46,6 @@ export const SubjectManagement: React.FC = () => {
         ...subject,
         isScheduled: scheduledMap.has(subject.id),
         scheduledDate: scheduledMap.get(subject.id)?.date,
-        scheduledTime: scheduledMap.get(subject.id)?.time,
         assignedBy: scheduledMap.get(subject.id)?.assignedBy
       }));
 
@@ -296,12 +293,7 @@ export const SubjectManagement: React.FC = () => {
                             {new Date(subject.scheduledDate!).toLocaleDateString()}
                           </span>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <Clock className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm text-gray-900">
-                            {subject.scheduledTime}
-                          </span>
-                        </div>
+
                         {subject.assignedBy && (
                           <div className="text-xs text-gray-500">
                             Assigned by: {subject.assignedBy}
