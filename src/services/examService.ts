@@ -91,49 +91,320 @@ export const examService = {
     }));
   },
 
-  // Schedule an exam with conflict checking
+  // Schedule an exam with conflict checking and shared subject logic
   async scheduleExam(subjectId: string, examDate: string, examTime: string, assignedBy: string): Promise<void> {
-    // First, check for conflicts
-    const { data: conflicts, error: conflictError } = await supabase
+    // Get the current department's ID based on the staff member or subject
+    let currentDepartmentId: string;
+    let subjectName: string;
+    
+    if (subjectId.startsWith('staff-subject-')) {
+      // Get department from staff details
+      const staffId = subjectId.replace('staff-subject-', '');
+      const { data: staffData, error: staffError } = await supabase
+        .from('staff_details')
+        .select('department')
+        .eq('id', staffId)
+        .single();
+
+      if (staffError || !staffData) {
+        throw new Error(`Staff member not found with ID: ${staffId}`);
+      }
+
+      const { data: deptData } = await supabase
+        .from('departments')
+        .select('id')
+        .eq('name', staffData.department.trim())
+        .single();
+        
+      currentDepartmentId = deptData?.id;
+      subjectName = staffData.subject_name;
+    } else {
+      // Get department from subject details
+      const { data: subject, error: subjectError } = await supabase
+        .from('subject_detail')
+        .select('department, name')
+        .eq('id', subjectId)
+        .single();
+
+      if (subjectError || !subject) {
+        throw new Error(`Subject not found with ID: ${subjectId}`);
+      }
+
+      const { data: deptData } = await supabase
+        .from('departments')
+        .select('id')
+        .eq('name', subject.department.trim())
+        .single();
+        
+      currentDepartmentId = deptData?.id;
+      subjectName = subject.name;
+    }
+
+    // Get current department name first
+    let currentDeptName: string;
+    if (subjectId.startsWith('staff-subject-')) {
+      const staffId = subjectId.replace('staff-subject-', '');
+      const { data: staffData } = await supabase
+        .from('staff_details')
+        .select('department')
+        .eq('id', staffId)
+        .single();
+      currentDeptName = staffData?.department;
+    } else {
+      const { data: subjectData } = await supabase
+        .from('subject_detail')
+        .select('department')
+        .eq('id', subjectId)
+        .single();
+      currentDeptName = subjectData?.department;
+    }
+
+    // Check for same-day conflicts within the same department
+    const { data: sameDayExams, error: sameDayError } = await supabase
       .from('exam_schedules')
-      .select('*')
+      .select(`
+        *,
+        subject_detail(*),
+        departments!exam_schedules_department_id_fkey(*)
+      `)
+      .eq('exam_date', examDate);
+
+    if (sameDayError) {
+      throw new Error(sameDayError.message);
+    }
+
+    // Filter exams by department name to ensure correct comparison
+    const sameDeptExams = sameDayExams?.filter(exam => 
+      exam.departments?.name === currentDeptName
+    ) || [];
+
+    if (sameDeptExams.length > 0) {
+      throw new Error(`${currentDeptName} department already has an exam scheduled on ${examDate}. Cannot schedule multiple exams for the same department on the same day.`);
+    }
+
+    // Check for time conflicts only within the same department
+    const { data: timeConflicts, error: conflictError } = await supabase
+      .from('exam_schedules')
+      .select(`
+        *,
+        subject_detail(*),
+        departments!exam_schedules_department_id_fkey(*)
+      `)
       .eq('exam_date', examDate)
-      .eq('exam_time', examTime);
+      .eq('exam_time', examTime)
+      .eq('department_id', currentDepartmentId);
 
     if (conflictError) {
       throw new Error(conflictError.message);
     }
 
-    if (conflicts && conflicts.length > 0) {
-      throw new Error(`Conflict detected: Another exam is already scheduled on ${examDate} at ${examTime}`);
+    if (timeConflicts && timeConflicts.length > 0) {
+      throw new Error(`Conflict detected: Department already has an exam scheduled on ${examDate} at ${examTime}`);
     }
 
-    // Get the subject details
-    const { data: subject, error: subjectError } = await supabase
-      .from('subject_detail')
-      .select('*')
-      .eq('id', subjectId)
-      .single();
+    // Check if this is a staff-subject ID (from staff_details table)
+    if (subjectId.startsWith('staff-subject-')) {
+      // Extract the staff ID from the subject ID
+      const staffId = subjectId.replace('staff-subject-', '');
+      
+      // Get the staff member's subject details
+      const { data: staffData, error: staffError } = await supabase
+        .from('staff_details')
+        .select('*')
+        .eq('id', staffId)
+        .single();
 
-    if (subjectError) {
-      throw new Error(subjectError.message);
-    }
+      if (staffError || !staffData) {
+        throw new Error(`Staff member not found with ID: ${staffId}`);
+      }
 
-    // Create the exam schedule
-    const { error: scheduleError } = await supabase
-      .from('exam_schedules')
-      .insert([{
-        subject_id: subjectId,
+      if (!staffData.subject_name || !staffData.subject_code) {
+        throw new Error(`Staff member ${staffData.name} has no assigned subject`);
+      }
+
+      // Check for shared subject conflicts BEFORE creating/finding the subject
+      const { data: existingSchedules, error: scheduleCheckError } = await supabase
+        .from('exam_schedules')
+        .select(`
+          *,
+          subject_detail(*),
+          departments!exam_schedules_department_id_fkey(*)
+        `);
+
+      if (scheduleCheckError) {
+        throw new Error(scheduleCheckError.message);
+      }
+
+      // Check if the same subject name is already scheduled
+      const sameSubjectSchedules = existingSchedules?.filter(schedule => 
+        schedule.subject_detail?.name === staffData.subject_name
+      ) || [];
+
+      if (sameSubjectSchedules.length > 0) {
+        // If the subject is already scheduled, force it to be on the same date
+        const existingSchedule = sameSubjectSchedules[0];
+        if (examDate !== existingSchedule.exam_date) {
+          const scheduledDept = existingSchedule.departments?.name || 'Unknown Department';
+          throw new Error(
+            `Subject "${staffData.subject_name}" must be scheduled on ${existingSchedule.exam_date} ` +
+            `as it is already scheduled by ${scheduledDept} department. ` +
+            `All departments teaching "${staffData.subject_name}" must have the exam on the same date.`
+          );
+        }
+      }
+
+      // First, create or find a subject record in subject_detail table
+      let actualSubjectId = subjectId;
+      
+      // Check if subject already exists in subject_detail by subcode (which has unique constraint)
+      const { data: existingSubject, error: findError } = await supabase
+        .from('subject_detail')
+        .select('*')
+        .eq('subcode', staffData.subject_code)
+        .maybeSingle();
+
+      if (findError) {
+        console.error('Error finding existing subject:', findError);
+      }
+
+      if (existingSubject) {
+        // Use existing subject ID
+        actualSubjectId = existingSubject.id;
+        console.log('Using existing subject:', existingSubject);
+      } else {
+        // Create new subject record
+        const { data: newSubject, error: createError } = await supabase
+          .from('subject_detail')
+          .insert([{
+            name: staffData.subject_name,
+            subcode: staffData.subject_code,
+            department: staffData.department,
+            year: 1, // Default year
+            is_shared: true, // Mark as shared subject
+            shared_subject_code: staffData.subject_code,
+          }])
+          .select()
+          .single();
+
+        if (createError) {
+          throw new Error(`Failed to create subject record: ${createError.message}`);
+        }
+
+        actualSubjectId = newSubject.id;
+        console.log('Created new shared subject:', newSubject);
+      }
+
+      // Get department ID for the staff member's department
+      // Trim any whitespace from the department name to handle trailing spaces
+      const trimmedDepartment = staffData.department.trim();
+      
+      const { data: departmentData, error: deptError } = await supabase
+        .from('departments')
+        .select('id')
+        .eq('name', trimmedDepartment)
+        .single();
+
+      if (deptError || !departmentData) {
+        throw new Error(`Department not found: ${trimmedDepartment}`);
+      }
+
+      // Find other departments teaching the same subject
+      const { data: otherDeptSubjects, error: otherDeptError } = await supabase
+        .from('subject_detail')
+        .select('*')
+        .eq('name', staffData.subject_name)
+        .neq('department', staffData.department);
+
+      // Get department IDs for the other departments
+      const departmentIds: { [dept: string]: string } = {};
+      if (otherDeptSubjects) {
+        const deptNames = otherDeptSubjects.map(s => s.department.trim());
+        const { data: deptData } = await supabase
+          .from('departments')
+          .select('id, name')
+          .in('name', deptNames);
+        
+        if (deptData) {
+          deptData.forEach(d => {
+            departmentIds[d.name] = d.id;
+          });
+        }
+      }
+
+      if (otherDeptError) {
+        throw new Error(otherDeptError.message);
+      }
+
+      // Prepare exam schedules for all departments
+      const schedulesToCreate = [{
+        subject_id: actualSubjectId,
         exam_date: examDate,
         exam_time: examTime,
-        department_id: '68b9d385-c948-490e-86c3-dc9e4d24a94e', // Computer Science default
-        assigned_by: assignedBy,
-        is_shared: false,
+        department_id: departmentData.id,
+        assigned_by: staffData.user_id,
         priority_department: null,
-      }]);
+      }];
 
-    if (scheduleError) {
-      throw new Error(scheduleError.message);
+      // Add schedules for other departments
+      if (otherDeptSubjects) {
+        otherDeptSubjects.forEach(subject => {
+          const deptId = departmentIds[subject.department.trim()];
+          if (deptId) {
+            schedulesToCreate.push({
+              subject_id: subject.id,
+              exam_date: examDate,
+              exam_time: examTime,
+              department_id: deptId,
+              assigned_by: staffData.user_id,
+              priority_department: departmentData.id, // Mark original department as priority
+            });
+          }
+        });
+      }
+
+      // Create all exam schedules in a single transaction
+      const { error: scheduleError } = await supabase
+        .from('exam_schedules')
+        .insert(schedulesToCreate);
+
+      if (scheduleError) {
+        throw new Error(`Failed to schedule exams: ${scheduleError.message}`);
+      }
+
+      // Notify other departments about the shared subject scheduling
+      await this.notifySharedSubjectScheduling(staffData.subject_name, examDate, examTime, staffData.department);
+    } else {
+      // Handle regular subject_detail table subjects (existing logic)
+      const { data: subjects, error: subjectError } = await supabase
+        .from('subject_detail')
+        .select('*')
+        .eq('id', subjectId);
+
+      if (subjectError) {
+        throw new Error(subjectError.message);
+      }
+
+      if (!subjects || subjects.length === 0) {
+        throw new Error(`Subject not found with ID: ${subjectId}`);
+      }
+
+      const subject = subjects[0];
+
+             // Create the exam schedule
+       const { error: scheduleError } = await supabase
+         .from('exam_schedules')
+         .insert([{
+           subject_id: subjectId,
+           exam_date: examDate,
+           exam_time: examTime,
+           department_id: '68b9d385-c948-490e-86c3-dc9e4d24a94e', // Computer Science default
+           assigned_by: assignedBy,
+           priority_department: null,
+         }]);
+
+       if (scheduleError) {
+         throw new Error(scheduleError.message);
+       }
     }
   },
 
@@ -143,7 +414,8 @@ export const examService = {
       .from('exam_schedules')
       .select(`
         *,
-        subject_detail(*)
+        subject_detail(*),
+        departments!exam_schedules_department_id_fkey(*)
       `)
       .order('exam_date', { ascending: true })
       .order('exam_time', { ascending: true });
@@ -157,11 +429,10 @@ export const examService = {
       subjectId: schedule.subject_id,
       subjectName: schedule.subject_detail?.name || 'Unknown Subject',
       subjectCode: schedule.subject_detail?.subcode || 'Unknown',
-      department: schedule.subject_detail?.department || 'Unknown',
+      department: schedule.departments?.name || 'Unknown',
       examDate: schedule.exam_date,
       examTime: schedule.exam_time,
       assignedBy: schedule.assigned_by,
-      isShared: schedule.is_shared,
       priorityDepartment: schedule.priority_department,
     }));
   },
@@ -363,5 +634,35 @@ export const examService = {
       status: 'active',
       createdAt: data.created_at,
     };
+  },
+
+  // Notify other departments about shared subject scheduling
+  async notifySharedSubjectScheduling(subjectName: string, examDate: string, examTime: string, scheduledByDepartment: string): Promise<void> {
+    try {
+      // Find all staff members teaching the same subject in other departments
+      const { data: otherStaff, error: staffError } = await supabase
+        .from('staff_details')
+        .select('*')
+        .eq('subject_name', subjectName)
+        .neq('department', scheduledByDepartment);
+
+      if (staffError) {
+        console.error('Error finding other staff teaching same subject:', staffError);
+        return;
+      }
+
+      if (otherStaff && otherStaff.length > 0) {
+        console.log(`📢 Shared Subject Notification: "${subjectName}" has been scheduled on ${examDate} at ${examTime} by ${scheduledByDepartment} department.`);
+        console.log(`📋 Other departments teaching this subject:`, otherStaff.map(staff => `${staff.department} (${staff.name})`));
+        
+        // In a real application, you would send emails/notifications here
+        // For now, we'll just log the information
+        otherStaff.forEach(staff => {
+          console.log(`📧 Notification sent to ${staff.name} (${staff.email}) in ${staff.department} department`);
+        });
+      }
+    } catch (error) {
+      console.error('Error notifying shared subject scheduling:', error);
+    }
   },
 }; 

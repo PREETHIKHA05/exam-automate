@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Edit, Trash2, Calendar, Clock, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Calendar, Clock, AlertCircle, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { subjectService, Subject } from '../services/subjectService';
 import { examService } from '../services/examService';
-import { Exam } from '../types';
 
-interface SubjectWithSchedule extends Exam {
+interface SubjectWithSchedule extends Subject {
   isScheduled: boolean;
   scheduledDate?: string;
   scheduledTime?: string;
@@ -23,8 +23,15 @@ export const SubjectManagement: React.FC = () => {
   const loadSubjects = async () => {
     try {
       setLoading(true);
-      const exams = await examService.getExams();
-      const scheduledExams = await examService.getScheduledExams();
+      const subjectsData = await subjectService.getAllSubjects();
+      
+      // Try to get scheduled exams, but don't fail if there are none
+      let scheduledExams: any[] = [];
+      try {
+        scheduledExams = await examService.getScheduledExams();
+      } catch (scheduleError) {
+        console.log('No scheduled exams found yet:', scheduleError);
+      }
       
       // Create a map of scheduled exams by subject ID
       const scheduledMap = new Map();
@@ -37,12 +44,12 @@ export const SubjectManagement: React.FC = () => {
       });
 
       // Combine subject data with scheduling status
-      const subjectsWithSchedule: SubjectWithSchedule[] = exams.map(exam => ({
-        ...exam,
-        isScheduled: scheduledMap.has(exam.id),
-        scheduledDate: scheduledMap.get(exam.id)?.date,
-        scheduledTime: scheduledMap.get(exam.id)?.time,
-        assignedBy: scheduledMap.get(exam.id)?.assignedBy
+      const subjectsWithSchedule: SubjectWithSchedule[] = subjectsData.map(subject => ({
+        ...subject,
+        isScheduled: scheduledMap.has(subject.id),
+        scheduledDate: scheduledMap.get(subject.id)?.date,
+        scheduledTime: scheduledMap.get(subject.id)?.time,
+        assignedBy: scheduledMap.get(subject.id)?.assignedBy
       }));
 
       setSubjects(subjectsWithSchedule);
@@ -55,8 +62,8 @@ export const SubjectManagement: React.FC = () => {
 
   const filteredSubjects = subjects.filter(subject => {
     const matchesSearch = 
-      subject.subjectName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      subject.subjectCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      subject.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      subject.subcode.toLowerCase().includes(searchTerm.toLowerCase()) ||
       subject.department.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesFilter = 
@@ -91,19 +98,30 @@ export const SubjectManagement: React.FC = () => {
     );
   };
 
-  const handleEdit = (id: string) => {
-    // TODO: Implement edit functionality
+  const handleEdit = async (id: string) => {
+    // TODO: Implement edit functionality with modal/form
     console.log('Edit subject:', id);
   };
 
-  const handleDelete = (id: string) => {
-    // TODO: Implement delete functionality
-    console.log('Delete subject:', id);
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this subject?')) {
+      try {
+        await subjectService.deleteSubject(id);
+        // Refresh the subjects list
+        await loadSubjects();
+      } catch (error) {
+        console.error('Error deleting subject:', error);
+      }
+    }
   };
 
   const handleAddSubject = () => {
-    // TODO: Implement add subject functionality
+    // TODO: Implement add subject functionality with modal/form
     console.log('Add new subject');
+  };
+
+  const refreshData = async () => {
+    await loadSubjects();
   };
 
   const stats = {
@@ -256,8 +274,8 @@ export const SubjectManagement: React.FC = () => {
                 <tr key={subject.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">{subject.subjectName}</div>
-                      <div className="text-sm text-gray-500">{subject.subjectCode}</div>
+                      <div className="text-sm font-medium text-gray-900">{subject.name}</div>
+                      <div className="text-sm text-gray-500">{subject.subcode}</div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

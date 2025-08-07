@@ -1,4 +1,5 @@
-import { mockExamService } from './mockExamService';
+import { supabase } from '../lib/supabase';
+import { staffService } from './staffService';
 
 export interface AuthUser {
   id: string;
@@ -12,48 +13,121 @@ class AuthService {
   private currentUser: AuthUser | null = null;
 
   async signIn(email: string, password: string): Promise<AuthUser> {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+    try {
+      // Sign in with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
 
-    // Check for admin login
-    if (email === 'admin@cit.edu' && password === 'admin123') {
+      if (authError) {
+        throw new Error(authError.message);
+      }
+
+      if (!authData.user) {
+        throw new Error('Authentication failed');
+      }
+
+      // Get staff details from the database
+      const { data: staffData, error: staffError } = await supabase
+        .from('staff_details')
+        .select('*')
+        .eq('user_id', authData.user.id)
+        .single();
+
+      if (staffError) {
+        console.error('Error fetching staff details:', staffError);
+        // If staff details not found, create a basic user object
+        const user: AuthUser = {
+          id: authData.user.id,
+          email: authData.user.email || '',
+          name: authData.user.email?.split('@')[0] || 'User',
+          role: 'teacher' // Default role
+        };
+        this.currentUser = user;
+        return user;
+      }
+
+      // Create user object from staff details
       const user: AuthUser = {
-        id: 'admin-001',
-        email: 'admin@cit.edu',
-        name: 'Administrator',
-        role: 'admin'
+        id: staffData.id,
+        email: staffData.email,
+        name: staffData.name,
+        role: staffData.role as 'admin' | 'teacher',
+        department: staffData.department
       };
+
       this.currentUser = user;
       return user;
-    }
 
-    // Check for teacher login
-    const teacher = await mockExamService.authenticateTeacher(email, password);
-    if (teacher) {
-      const user: AuthUser = {
-        id: teacher.id,
-        email: teacher.email,
-        name: teacher.name,
-        role: 'teacher',
-        department: teacher.department
-      };
-      this.currentUser = user;
-      return user;
+    } catch (error) {
+      console.error('Sign in error:', error);
+      throw error;
     }
-
-    throw new Error('Invalid email or password');
   }
 
   async signOut(): Promise<void> {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 100));
-    this.currentUser = null;
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Sign out error:', error);
+      }
+      this.currentUser = null;
+    } catch (error) {
+      console.error('Sign out error:', error);
+      this.currentUser = null;
+    }
   }
 
   async getCurrentUser(): Promise<AuthUser | null> {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 100));
-    return this.currentUser;
+    try {
+      // Check if there's an active session
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error || !session) {
+        this.currentUser = null;
+        return null;
+      }
+
+      // If we already have the current user cached, return it
+      if (this.currentUser) {
+        return this.currentUser;
+      }
+
+      // Get staff details from the database
+      const { data: staffData, error: staffError } = await supabase
+        .from('staff_details')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (staffError) {
+        console.error('Error fetching staff details:', staffError);
+        return null;
+      }
+
+      // Create user object from staff details
+      const user: AuthUser = {
+        id: staffData.id,
+        email: staffData.email,
+        name: staffData.name,
+        role: staffData.role as 'admin' | 'teacher',
+        department: staffData.department
+      };
+
+      this.currentUser = user;
+      return user;
+
+    } catch (error) {
+      console.error('Get current user error:', error);
+      return null;
+    }
+  }
+
+  // Helper method to check if user is authenticated
+  async isAuthenticated(): Promise<boolean> {
+    const user = await this.getCurrentUser();
+    return user !== null;
   }
 }
 

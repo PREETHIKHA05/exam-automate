@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { GraduationCap, Lock, Mail, Eye, EyeOff, MapPin, Phone, Mail as MailIcon, Award, Building, BookOpen, Users } from 'lucide-react';
-import { mockExamService } from '../services/mockExamService';
+import { GraduationCap, Lock, Mail, Eye, EyeOff, MapPin, Phone, Mail as MailIcon, Award, Building, BookOpen, Users, AlertCircle } from 'lucide-react';
 
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -10,7 +9,6 @@ export const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showCredentials, setShowCredentials] = useState(false);
   const { user, login } = useAuth();
 
   if (user) {
@@ -25,7 +23,8 @@ export const Login: React.FC = () => {
     try {
       await login(email, password);
     } catch (err) {
-      setError('Invalid email or password');
+      const errorMessage = err instanceof Error ? err.message : 'Invalid email or password';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -157,32 +156,17 @@ export const Login: React.FC = () => {
               </button>
             </form>
 
-            {/* Teacher Credentials for Testing */}
+            {/* Help Section */}
             <div className="mt-6 pt-6 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={() => setShowCredentials(!showCredentials)}
-                className="w-full flex items-center justify-center space-x-2 text-sm text-gray-600 hover:text-gray-800"
-              >
-                <Users className="h-4 w-4" />
-                <span>{showCredentials ? 'Hide' : 'Show'} Teacher Credentials</span>
-              </button>
-              
-              {showCredentials && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                  <h4 className="text-sm font-medium text-gray-900 mb-3">Teacher Login Credentials:</h4>
-                  <div className="space-y-2 text-xs">
-                    {mockExamService.getTeacherCredentials().map((teacher, index) => (
-                      <div key={index} className="p-2 bg-white rounded border">
-                        <div className="font-medium text-gray-900">{teacher.name}</div>
-                        <div className="text-gray-600">Dept: {teacher.department} • Subject: {teacher.subject}</div>
-                        <div className="text-gray-500">Email: {teacher.email}</div>
-                        <div className="text-gray-500">Password: {teacher.password}</div>
-                      </div>
-                    ))}
-                  </div>
+              <div className="text-center">
+                <div className="flex items-center justify-center space-x-2 text-sm text-gray-600">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>Need help? Contact your system administrator</span>
                 </div>
-              )}
+                <p className="text-xs text-gray-500 mt-2">
+                  Use your registered email and password to access the system
+                </p>
+              </div>
             </div>
           </div>
         </div>

@@ -4,7 +4,9 @@ import { useExams } from '../context/ExamContext';
 import { Exam } from '../types';
 import { Calendar, Clock, BookOpen, CheckCircle, AlertTriangle, Home, Building, Bell, User, LogOut, FileText } from 'lucide-react';
 import { ExamScheduler } from './ExamScheduler';
-import { mockExamService } from '../services/mockExamService';
+import { examService } from '../services/examService';
+import { staffService } from '../services/staffService';
+import { supabase } from '../lib/supabase';
 
 export const TeacherDashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -20,10 +22,50 @@ export const TeacherDashboard: React.FC = () => {
     const loadTeacherData = async () => {
       if (user?.id) {
         try {
-          const teacherSubjects = await mockExamService.getExamsByTeacher(user.id);
-          const teacherScheduled = await mockExamService.getScheduledExamsByTeacher(user.id);
-          setTeacherExams(teacherSubjects);
-          setScheduledExams(teacherScheduled);
+          setLoading(true);
+          
+          // Get teacher's assigned subjects from staff_details table
+          const teacherStaff = await staffService.getStaffById(user.id);
+          
+          if (teacherStaff && teacherStaff.subject_name && teacherStaff.subject_code) {
+            console.log('Creating subject from staff data:', {
+              name: teacherStaff.subject_name,
+              code: teacherStaff.subject_code,
+              department: teacherStaff.department
+            });
+
+            // Create exam object directly from teacher's assigned subject in staff_details
+            const teacherSubject: Exam = {
+              id: `staff-subject-${teacherStaff.id}`, // Create a unique ID for this staff-subject combination
+              subjectCode: teacherStaff.subject_code,
+              subjectName: teacherStaff.subject_name,
+              courseId: teacherStaff.subject_code,
+              department: teacherStaff.department,
+              year: 1, // Default year
+              semester: 1, // Default semester
+              teacherId: teacherStaff.id,
+              teacherName: teacherStaff.name,
+              scheduledDate: undefined,
+              startDate: '2025-02-04',
+              endDate: '2025-02-15',
+              status: 'pending'
+            };
+            
+            console.log('Created teacher subject:', teacherSubject);
+            setTeacherExams([teacherSubject]);
+          } else {
+            // If no subject assigned, try to get subjects by teacher ID
+            const teacherSubjects = await examService.getExamsByTeacher(user.id);
+            setTeacherExams(teacherSubjects);
+          }
+          
+          // Get scheduled exams for this teacher
+          const teacherScheduled = await examService.getScheduledExams();
+          const filteredScheduled = teacherScheduled.filter(exam => 
+            exam.assignedBy === user.id || exam.teacherId === user.id
+          );
+          setScheduledExams(filteredScheduled);
+          
         } catch (error) {
           console.error('Error loading teacher data:', error);
         } finally {

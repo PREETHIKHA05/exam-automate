@@ -1,30 +1,51 @@
 import React, { useState, useEffect } from 'react';
 import { Download, FileText, Calendar } from 'lucide-react';
 import jsPDF from 'jspdf';
-import { departments } from '../data/mockData';
-import { mockExamService } from '../services/mockExamService';
+import { examService } from '../services/examService';
+import { departmentService, Department } from '../services/departmentService';
+
+// Define departments for PDF generation (fallback if API fails)
+const defaultDepartments = [
+  { code: 'IT', name: 'Information Technology' },
+  { code: 'CSE', name: 'Computer Science & Engineering' },
+  { code: 'AIDS', name: 'Artificial Intelligence & Data Science' }
+];
 
 export const PDFGenerator: React.FC = () => {
   const [generating, setGenerating] = useState(false);
   const [selectedYear, setSelectedYear] = useState('4');
   const [selectedExam, setSelectedExam] = useState('IA2');
   const [scheduledExams, setScheduledExams] = useState<any[]>([]);
+  const [departments, setDepartments] = useState(defaultDepartments);
   const [loading, setLoading] = useState(true);
 
-  // Load scheduled exams
+  // Load scheduled exams and departments
   useEffect(() => {
-    const loadScheduledExams = async () => {
+    const loadData = async () => {
       try {
-        const exams = await mockExamService.getScheduledExams();
+        const [exams, deptData] = await Promise.all([
+          examService.getScheduledExams(),
+          departmentService.getAllDepartments()
+        ]);
+        
         setScheduledExams(exams);
+        
+        // Convert department data to the format expected by PDF
+        const formattedDepts = deptData.map(dept => ({
+          code: dept.code,
+          name: dept.name
+        }));
+        setDepartments(formattedDepts.length > 0 ? formattedDepts : defaultDepartments);
       } catch (error) {
-        console.error('Error loading scheduled exams:', error);
+        console.error('Error loading data:', error);
+        // Use default departments if API fails
+        setDepartments(defaultDepartments);
       } finally {
         setLoading(false);
       }
     };
 
-    loadScheduledExams();
+    loadData();
   }, []);
 
   const generatePDF = async () => {
@@ -121,7 +142,7 @@ export const PDFGenerator: React.FC = () => {
       pdf.setFont('helvetica', 'bold');
       pdf.text('DATE', tableStartX + 5, tableStartY + 6);
       
-      departments.forEach((dept, index) => {
+      departments.forEach((dept: { code: string; name: string }, index: number) => {
         const xPos = tableStartX + dateColWidth + (index * deptColWidth);
         pdf.text(dept.code, xPos + 2, tableStartY + 6);
       });
@@ -130,7 +151,7 @@ export const PDFGenerator: React.FC = () => {
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(7);
       
-      scheduleData.forEach((row, rowIndex) => {
+      scheduleData.forEach((row: any, rowIndex: number) => {
         const rowY = tableStartY + (rowIndex + 1) * cellHeight;
         
         // Date column
@@ -138,7 +159,7 @@ export const PDFGenerator: React.FC = () => {
         pdf.text(row.date, tableStartX + 5, rowY + 6);
         
         // Department columns
-        departments.forEach((dept, deptIndex) => {
+        departments.forEach((dept: { code: string; name: string }, deptIndex: number) => {
           const xPos = tableStartX + dateColWidth + (deptIndex * deptColWidth);
           pdf.rect(xPos, rowY, deptColWidth, cellHeight);
           
@@ -282,7 +303,7 @@ export const PDFGenerator: React.FC = () => {
         const examsOnDate = filteredExams.filter(exam => exam.examDate === dateStr);
         
         // Assign subjects to departments
-        departments.forEach(dept => {
+        departments.forEach((dept: { code: string; name: string }) => {
           const examForDept = examsOnDate.find(exam => exam.department === dept.code);
           if (examForDept) {
             subjects[dept.code] = {

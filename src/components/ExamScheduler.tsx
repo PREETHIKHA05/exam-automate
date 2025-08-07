@@ -35,7 +35,7 @@ export const ExamScheduler: React.FC<ExamSchedulerProps> = ({ exam, onClose, onS
     // Check for same subject name scheduling opportunity
     const sameSubjectScheduled = scheduledExams.find(e => e.subjectName === exam.subjectName);
     if (sameSubjectScheduled) {
-      setConflict(`Info: Same subject "${exam.subjectName}" is already scheduled for ${sameSubjectScheduled.department} on this date.`);
+      setConflict(`Info: Same subject "${exam.subjectName}" is already scheduled for ${sameSubjectScheduled.department} on this date. This is a shared subject - all departments teaching this subject must schedule on the same date.`);
       return;
     }
   };

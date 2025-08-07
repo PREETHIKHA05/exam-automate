@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Exam, ExamAlert } from '../types';
-import { mockExamService } from '../services/mockExamService';
+import { examService } from '../services/examService';
+import { staffService } from '../services/staffService';
 
 interface ExamContextType {
   exams: Exam[];
@@ -36,7 +37,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshExams = async () => {
     try {
-      const examData = await mockExamService.getExams();
+      const examData = await examService.getExams();
       setExams(examData);
     } catch (error) {
       console.error('Error fetching exams:', error);
@@ -45,7 +46,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshAlerts = async () => {
     try {
-      const alertData = await mockExamService.getExamAlerts();
+      const alertData = await examService.getExamAlerts();
       setAlerts(alertData);
     } catch (error) {
       console.error('Error fetching alerts:', error);
@@ -54,7 +55,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshScheduledExams = async () => {
     try {
-      const scheduledData = await mockExamService.getScheduledExams();
+      const scheduledData = await examService.getScheduledExams();
       setScheduledExams(scheduledData);
     } catch (error) {
       console.error('Error fetching scheduled exams:', error);
@@ -96,7 +97,8 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const scheduleExam = async (subjectId: string, examDate: string, examTime: string, assignedBy: string) => {
     try {
-      await mockExamService.scheduleExam(subjectId, examDate, examTime, assignedBy);
+      await examService.scheduleExam(subjectId, examDate, examTime, assignedBy);
+      
       // Refresh scheduled exams after scheduling
       await refreshScheduledExams();
       // Also refresh exams to update their status
@@ -109,7 +111,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const createAlert = async (alertData: Omit<ExamAlert, 'id' | 'createdAt'>) => {
     try {
-      const newAlert = await mockExamService.createExamAlert(alertData);
+      const newAlert = await examService.createExamAlert(alertData);
       setAlerts(prevAlerts => [newAlert, ...prevAlerts]);
     } catch (error) {
       console.error('Error creating alert:', error);
@@ -119,7 +121,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateAlert = async (alertId: string, updates: Partial<ExamAlert>) => {
     try {
-      const updatedAlert = await mockExamService.updateExamAlert(alertId, updates);
+      const updatedAlert = await examService.updateExamAlert(alertId, updates);
       setAlerts(prevAlerts => 
         prevAlerts.map(alert => 
           alert.id === alertId ? updatedAlert : alert
