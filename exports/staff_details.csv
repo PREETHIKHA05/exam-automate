@@ -1,0 +1,4 @@
+id,name,email,phone,department,created_at,updated_at,role,department_id,user_id
+cdf14a0f-80b9-40c0-84f3-5eff78bd613b,John Teacher,teacher@example.com,+1234567891,Information Technology,2025-08-05T13:26:29.696852+00:00,2025-08-05T13:26:29.696852+00:00,teacher,2bf63308-fbe6-4710-ba17-d90b61a8c892,
+3f2a75d8-4aee-473a-bb5a-795104bc8c93,CS Teacher,cs.teacher@example.com,+1234567892,Computer Science,2025-08-05T13:26:29.696852+00:00,2025-08-05T13:26:29.696852+00:00,teacher,68b9d385-c948-490e-86c3-dc9e4d24a94e,603d1769-0757-4d97-a75b-626425a2977d
+7d9785d2-be8b-40d1-b923-4f8685e968e7,System Administrator,admin@example.com,+1234567890,Computer Science,2025-08-05T13:26:29.696852+00:00,2025-08-05T13:26:29.696852+00:00,admin,68b9d385-c948-490e-86c3-dc9e4d24a94e,6881fe10-92ee-4526-9ce6-b1b74bb92373

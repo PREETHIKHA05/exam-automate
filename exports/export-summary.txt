@@ -1,0 +1,4 @@
+Data Export Summary
+Generated on: 2025-08-05T16:46:55.430Z
+Tables exported: staff_details, departments, subject_detail, exam_settings, exam_schedules
+Location: ./exports/
