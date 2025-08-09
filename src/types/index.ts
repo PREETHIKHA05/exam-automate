@@ -12,8 +12,9 @@ export interface Exam {
   subjectName: string;
   courseId: string;
   department: string;
-  year: number;
+  year: 2 | 3; // Only 2nd and 3rd years allowed
   semester: number;
+  examType?: 'IA1' | 'IA2' | 'IA3';
   teacherId: string;
   teacherName: string;
   scheduledDate?: string;
@@ -27,7 +28,7 @@ export interface ExamAlert {
   title: string;
   startDate: string;
   endDate: string;
-  year: number;
+  year: 2 | 3; // Only 2nd and 3rd years allowed
   semester: number;
   departments: string[];
   createdAt: string;
@@ -39,12 +40,17 @@ export interface Department {
   name: string;
 }
 
+export interface Subject {
+  subject_code: string;
+  subject_name: string;
+}
+
 export interface Teacher {
   id: string;
   name: string;
   email: string;
   department: string;
-  subject: string;
+  subjects: Subject[];
   password: string;
 }
 

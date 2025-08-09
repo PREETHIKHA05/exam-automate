@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Exam, ExamAlert } from '../types';
 import { examService } from '../services/examService';
-import { staffService } from '../services/staffService';
+
 
 interface ExamContextType {
   exams: Exam[];
@@ -14,7 +14,7 @@ interface ExamContextType {
   updateExam: (examId: string, updates: Partial<Exam>) => Promise<void>;
   createExam: (examData: Omit<Exam, 'id'>) => Promise<void>;
   deleteExam: (examId: string) => Promise<void>;
-  scheduleExam: (subjectId: string, examDate: string, examTime: string, assignedBy: string) => Promise<void>;
+  scheduleExam: (subjectId: string, examDate: string, assignedBy: string) => Promise<void>;
   createAlert: (alertData: Omit<ExamAlert, 'id' | 'createdAt'>) => Promise<void>;
   updateAlert: (alertId: string, updates: Partial<ExamAlert>) => Promise<void>;
 }
@@ -95,9 +95,9 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const scheduleExam = async (subjectId: string, examDate: string, examTime: string, assignedBy: string) => {
+  const scheduleExam = async (subjectId: string, examDate: string, assignedBy: string) => {
     try {
-      await examService.scheduleExam(subjectId, examDate, examTime, assignedBy);
+      await examService.scheduleExam(subjectId, examDate, assignedBy);
       
       // Refresh scheduled exams after scheduling
       await refreshScheduledExams();

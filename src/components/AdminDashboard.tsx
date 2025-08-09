@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useExams } from '../context/ExamContext';
 import { ExamAlert } from '../types';
-import { departments } from '../data/mockData';
+
 import { Calendar, FileText, Users, AlertTriangle, Plus, Download, Home, Building, Bell, User, LogOut, Clock } from 'lucide-react';
 import { CreateExamAlert } from './CreateExamAlert';
 import { ExamScheduleTable } from './ExamScheduleTable';
@@ -22,10 +22,10 @@ export const AdminDashboard: React.FC = () => {
   const [alerts, setAlerts] = useState<ExamAlert[]>([
     {
       id: '1',
-      title: 'Internal Assessment-II - IV Year',
+      title: 'Internal Assessment-II - III Year',
       startDate: '2025-02-04',
       endDate: '2025-02-15',
-      year: 4,
+      year: 3,
       semester: 8,
       departments: ['CSE', 'ECE', 'EEE', 'MECH'],
       createdAt: '2025-01-15',

@@ -15,7 +15,7 @@ const defaultDepartments = [
 
 export const PDFGenerator: React.FC = () => {
   const [generating, setGenerating] = useState(false);
-  const [selectedYear, setSelectedYear] = useState('4');
+  const [selectedYear, setSelectedYear] = useState('2');
   const [selectedExam, setSelectedExam] = useState('IA2');
   const [scheduledExams, setScheduledExams] = useState<any[]>([]);
   const [departments, setDepartments] = useState(defaultDepartments);
@@ -394,7 +394,6 @@ export const PDFGenerator: React.FC = () => {
                   >
                     <option value="2">II Year</option>
                     <option value="3">III Year</option>
-                    <option value="4">IV Year</option>
                   </select>
                 </div>
                 
@@ -421,13 +420,7 @@ export const PDFGenerator: React.FC = () => {
                         <option value="IA3">IA3 - Internal Assessment III</option>
                       </>
                     )}
-                    {selectedYear === '4' && (
-                      <>
-                        <option value="IA2">IA2 - Internal Assessment II</option>
-                        <option value="Model">Model Examination</option>
-                        <option value="End-Semester">End Semester Examination</option>
-                      </>
-                    )}
+
                   </select>
                 </div>
               </div>

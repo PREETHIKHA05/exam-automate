@@ -7,7 +7,15 @@ export const examService = {
     try {
       console.log('Testing exam_schedules table access...');
       
-      const { data, error } = await supabase
+      const { data, erro          // Create exam schedules for all departments
+      const schedulesToCreate = [{
+        subject_id: actualSubjectId,
+        exam_date: examDate,
+        department_id: departmentData.id,
+        assigned_by: staffId, // Use staff_details.id instead of user_id
+        priority_department: null,
+        exam_type: selectedExamType // Add exam type
+      }];ait supabase
         .from('exam_schedules')
         .select('*')
         .limit(5);
@@ -92,7 +100,7 @@ export const examService = {
   },
 
   // Schedule an exam with conflict checking and shared subject logic
-  async scheduleExam(subjectId: string, examDate: string, assignedBy: string): Promise<void> {
+  async scheduleExam(subjectId: string, examDate: string, assignedBy: string, selectedExamType: 'IA1' | 'IA2' | 'IA3'): Promise<void> {
     // Get the current department's ID based on the staff member or subject
     let currentDepartmentId: string;
     let subjectName: string;
@@ -339,7 +347,6 @@ export const examService = {
       const schedulesToCreate = [{
         subject_id: actualSubjectId,
         exam_date: examDate,
-        exam_time: examTime,
         department_id: departmentData.id,
         assigned_by: staffData.user_id,
         priority_department: null,
@@ -353,10 +360,10 @@ export const examService = {
             schedulesToCreate.push({
               subject_id: subject.id,
               exam_date: examDate,
-              exam_time: examTime,
               department_id: deptId,
-              assigned_by: staffData.user_id,
+              assigned_by: staffId, // Use staff_details.id instead of user_id
               priority_department: departmentData.id, // Mark original department as priority
+              exam_type: selectedExamType // Add exam type
             });
           }
         });
@@ -377,7 +384,7 @@ export const examService = {
             .from('exam_schedules')
             .update({
               exam_date: schedule.exam_date,
-              exam_time: schedule.exam_time,
+
               assigned_by: schedule.assigned_by,
               priority_department: schedule.priority_department
             })
@@ -431,7 +438,6 @@ export const examService = {
           .from('exam_schedules')
           .update({
             exam_date: examDate,
-            exam_time: examTime,
             assigned_by: assignedBy
           })
           .eq('id', existingSchedule.id);
@@ -446,10 +452,10 @@ export const examService = {
           .insert([{
             subject_id: subjectId,
             exam_date: examDate,
-            exam_time: examTime,
             department_id: currentDepartmentId,
             assigned_by: assignedBy,
             priority_department: null,
+            exam_type: selectedExamType
           }]);
 
         if (scheduleError) {
@@ -505,17 +511,7 @@ export const examService = {
     return availableDates;
   },
 
-  // Get available time slots
-  getAvailableTimeSlots(): string[] {
-    return [
-      '09:00:00',
-      '10:00:00', 
-      '11:00:00',
-      '14:00:00',
-      '15:00:00',
-      '16:00:00'
-    ];
-  },
+
 
   // Create subject (mapped to Exam interface)
   async createExam(examData: Omit<Exam, 'id'>): Promise<Exam> {
@@ -583,7 +579,7 @@ export const examService = {
       semester: 8,
       teacherId: updates.teacherId || '',
       teacherName: updates.teacherName || '',
-      scheduledDate: updates.scheduledDate || null,
+      scheduledDate: updates.scheduledDate || undefined,
       startDate: updates.startDate || '2025-02-04',
       endDate: updates.endDate || '2025-02-15',
       status: updates.status || 'pending',

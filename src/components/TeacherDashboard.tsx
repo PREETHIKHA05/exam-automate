@@ -2,20 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useExams } from '../context/ExamContext';
 import { Exam } from '../types';
-import { Calendar, Clock, BookOpen, CheckCircle, AlertTriangle, Home, Building, Bell, User, LogOut, FileText } from 'lucide-react';
+import { Calendar, Clock, BookOpen, CheckCircle, AlertTriangle, Home, Building, User, LogOut, FileText } from 'lucide-react';
 import { ExamScheduler } from './ExamScheduler';
 import { examService } from '../services/examService';
 import { staffService } from '../services/staffService';
-import { supabase } from '../lib/supabase';
 
 export const TeacherDashboard: React.FC = () => {
   const { user, logout } = useAuth();
-  const { exams, updateExam } = useExams();
+  const { updateExam } = useExams();
   const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'subjects' | 'schedule' | 'notifications'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'subjects' | 'schedule'>('dashboard');
   const [teacherExams, setTeacherExams] = useState<Exam[]>([]);
-  const [scheduledExams, setScheduledExams] = useState<any[]>([]);
+  const [scheduledExams, setScheduledExams] = useState<Exam[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedYear, setSelectedYear] = useState<2 | 3>(2);
+  const [selectedExamType, setSelectedExamType] = useState<'IA1' | 'IA2' | 'IA3'>('IA1');
+
+  const examTypes = [
+    { value: 'IA1', label: 'Internal Assessment 1' },
+    { value: 'IA2', label: 'Internal Assessment 2' },
+    { value: 'IA3', label: 'Internal Assessment 3' }
+  ];
   
   // Load teacher's subjects and scheduled exams
   useEffect(() => {
@@ -27,32 +34,26 @@ export const TeacherDashboard: React.FC = () => {
           // Get teacher's assigned subjects from staff_details table
           const teacherStaff = await staffService.getStaffById(user.id);
           
-          if (teacherStaff && teacherStaff.subject_name && teacherStaff.subject_code) {
-            console.log('Creating subject from staff data:', {
-              name: teacherStaff.subject_name,
-              code: teacherStaff.subject_code,
-              department: teacherStaff.department
-            });
-
-            // Create exam object directly from teacher's assigned subject in staff_details
-            const teacherSubject: Exam = {
-              id: `staff-subject-${teacherStaff.id}`, // Create a unique ID for this staff-subject combination
-              subjectCode: teacherStaff.subject_code,
-              subjectName: teacherStaff.subject_name,
-              courseId: teacherStaff.subject_code,
+          if (teacherStaff && teacherStaff.subjects && teacherStaff.subjects.length > 0) {
+            // Create exam objects for each assigned subject
+            const teacherSubjects: Exam[] = teacherStaff.subjects.map(subject => ({
+              id: `staff-subject-${teacherStaff.id}-${subject.subject_code}`,
+              subjectCode: subject.subject_code,
+              subjectName: subject.subject_name,
+              courseId: subject.subject_code,
               department: teacherStaff.department,
-              year: 1, // Default year
-              semester: 1, // Default semester
+              year: 2 as const, // explicitly type as literal 2
+              semester: 1,
               teacherId: teacherStaff.id,
               teacherName: teacherStaff.name,
               scheduledDate: undefined,
               startDate: '2025-02-04',
               endDate: '2025-02-15',
               status: 'pending'
-            };
+            }));
             
-            console.log('Created teacher subject:', teacherSubject);
-            setTeacherExams([teacherSubject]);
+            console.log('Created teacher subjects:', teacherSubjects);
+            setTeacherExams(teacherSubjects);
           } else {
             // If no subject assigned, try to get subjects by teacher ID
             const teacherSubjects = await examService.getExamsByTeacher(user.id);
@@ -79,10 +80,33 @@ export const TeacherDashboard: React.FC = () => {
 
   const pendingExams = teacherExams.filter(exam => exam.status === 'pending');
 
-  const handleScheduleExam = (examId: string, date: string) => {
-    // Update the exam using the shared context
-    updateExam(examId, { scheduledDate: date, status: 'scheduled' });
-    setSelectedExam(null);
+  const handleScheduleExam = async (examId: string, date: string) => {
+    try {
+      console.log('Attempting to schedule exam with:', { examId, date, userId: user?.id });
+      
+      // Get the staff details first to get the actual staff ID
+      const staffDetails = await staffService.getStaffById(user?.id || '');
+      console.log('Retrieved staff details:', staffDetails);
+      
+      if (!staffDetails) {
+        throw new Error('Could not find staff details for user ID: ' + user?.id);
+      }
+
+      // Schedule the exam using the staff_details ID
+      console.log('Scheduling exam with staff ID:', staffDetails.id);
+      await examService.scheduleExam(examId, date, staffDetails.id, selectedExamType);
+      
+      // Then update the exam in the context
+      updateExam(examId, { 
+        scheduledDate: date, 
+        status: 'scheduled',
+        examType: selectedExamType
+      });
+      setSelectedExam(null);
+    } catch (error) {
+      console.error('Failed to schedule exam:', error);
+      alert('Failed to schedule exam. Please try again.');
+    }
   };
 
   const completionRate = teacherExams.length > 0 ? Math.round((scheduledExams.length / teacherExams.length) * 100) : 0;
@@ -154,20 +178,7 @@ export const TeacherDashboard: React.FC = () => {
                 <span>Schedule Exams</span>
               </button>
             </li>
-            <li>
-              <button
-                onClick={() => setActiveTab('notifications')}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                  activeTab === 'notifications' 
-                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
-                    : 'text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <Bell className="h-5 w-5" />
-                <span>Notifications</span>
-                <span className="ml-auto bg-red-500 text-white text-xs px-2 py-1 rounded-full">3</span>
-              </button>
-            </li>
+
           </ul>
         </nav>
 
@@ -311,18 +322,33 @@ export const TeacherDashboard: React.FC = () => {
           {/* Subjects Tab */}
           {activeTab === 'subjects' && (
             <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-900">My Subjects</h2>
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-gray-900">My Subjects</h2>
+                <div className="flex items-center space-x-4">
+                  <label className="text-sm font-medium text-gray-700">Select Year:</label>
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(Number(e.target.value) as 2 | 3)}
+                    className="form-select rounded-lg border-gray-300 text-gray-700 text-sm focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value={2}>II Year</option>
+                    <option value={3}>III Year</option>
+                  </select>
+                </div>
+              </div>
               <div className="bg-white rounded-lg shadow-sm">
                 <div className="px-6 py-4 border-b border-gray-200">
-                  <h3 className="text-lg font-medium text-gray-900">Available Subjects ({teacherExams.length})</h3>
+                  <h3 className="text-lg font-medium text-gray-900">
+                    Available Subjects for Year {selectedYear} ({teacherExams.filter(exam => exam.year === selectedYear).length})
+                  </h3>
                 </div>
-                {teacherExams.length === 0 ? (
+                {teacherExams.filter(exam => exam.year === selectedYear).length === 0 ? (
                   <div className="px-6 py-8 text-center">
-                    <p className="text-gray-500">No subjects available</p>
+                    <p className="text-gray-500">No subjects available for Year {selectedYear}</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-200">
-                    {teacherExams.map((exam) => (
+                    {teacherExams.filter(exam => exam.year === selectedYear).map((exam) => (
                       <div key={exam.id} className="px-6 py-4">
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
@@ -365,7 +391,42 @@ export const TeacherDashboard: React.FC = () => {
           {/* Schedule Tab */}
           {activeTab === 'schedule' && (
             <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-900">Schedule Exams</h2>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-gray-900">Schedule Exams</h2>
+                </div>
+                
+                <div className="bg-white rounded-lg shadow-sm p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Select Year:</label>
+                      <select
+                        value={selectedYear}
+                        onChange={(e) => setSelectedYear(Number(e.target.value) as 2 | 3)}
+                        className="w-full form-select rounded-lg border-gray-300 text-gray-700 text-sm focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value={2}>II Year</option>
+                        <option value={3}>III Year</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Select Exam Type:</label>
+                      <select
+                        value={selectedExamType}
+                        onChange={(e) => setSelectedExamType(e.target.value as 'IA1' | 'IA2' | 'IA3')}
+                        className="w-full form-select rounded-lg border-gray-300 text-gray-700 text-sm focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        {examTypes.map(type => (
+                          <option key={type.value} value={type.value}>
+                            {type.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
               
               {/* Pending Exams Section */}
               <div className="bg-white rounded-lg shadow-sm">
@@ -373,18 +434,18 @@ export const TeacherDashboard: React.FC = () => {
                   <div className="flex items-center">
                     <AlertTriangle className="h-5 w-5 text-orange-500 mr-2" />
                     <h3 className="text-lg font-medium text-gray-900">
-                      Exams Requiring Schedule ({pendingExams.length})
+                      Exams Requiring Schedule ({pendingExams.filter(exam => exam.year === selectedYear).length})
                     </h3>
                   </div>
                 </div>
                 
-                {pendingExams.length === 0 ? (
+                {pendingExams.filter(exam => exam.year === selectedYear).length === 0 ? (
                   <div className="px-6 py-8 text-center">
-                    <p className="text-gray-500">No pending exams to schedule</p>
+                    <p className="text-gray-500">No pending exams to schedule for Year {selectedYear}</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-200">
-                    {pendingExams.map((exam) => (
+                    {pendingExams.filter(exam => exam.year === selectedYear).map((exam) => (
                       <div key={exam.id} className="px-6 py-4">
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
@@ -425,18 +486,18 @@ export const TeacherDashboard: React.FC = () => {
                   <div className="flex items-center">
                     <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
                     <h3 className="text-lg font-medium text-gray-900">
-                      Scheduled Exams ({scheduledExams.length})
+                      Scheduled Exams ({scheduledExams.filter(exam => exam.year === selectedYear).length})
                     </h3>
                   </div>
                 </div>
                 
-                {scheduledExams.length === 0 ? (
+                {scheduledExams.filter(exam => exam.year === selectedYear).length === 0 ? (
                   <div className="px-6 py-8 text-center">
-                    <p className="text-gray-500">No scheduled exams yet</p>
+                    <p className="text-gray-500">No scheduled exams yet for Year {selectedYear}</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-200">
-                    {scheduledExams.map((exam) => (
+                    {scheduledExams.filter(exam => exam.year === selectedYear).map((exam) => (
                       <div key={exam.id} className="px-6 py-4">
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
@@ -481,18 +542,7 @@ export const TeacherDashboard: React.FC = () => {
             </div>
           )}
 
-              {/* Notifications Tab */}
-              {activeTab === 'notifications' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-gray-900">Notifications</h2>
-                  <div className="bg-white rounded-lg shadow-sm p-6">
-                    <div className="text-center py-8">
-                      <Bell className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-500">No new notifications</p>
-                    </div>
-                  </div>
-                </div>
-              )}
+
             </>
           )}
         </main>

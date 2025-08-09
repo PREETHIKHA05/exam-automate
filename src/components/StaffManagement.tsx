@@ -23,7 +23,7 @@ export const StaffManagement: React.FC = () => {
         ]);
         
         console.log('Loaded staff data:', staffData);
-        console.log('Staff with subjects:', staffData.filter(staff => staff.subject_name));
+        console.log('Staff with subjects:', staffData.filter(staff => staff.subjects?.length > 0));
         
         setStaffMembers(staffData);
         setDepartments(departmentData);
@@ -43,8 +43,10 @@ export const StaffManagement: React.FC = () => {
     staff.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     staff.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     staff.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (staff.subject_name && staff.subject_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (staff.subject_code && staff.subject_code.toLowerCase().includes(searchTerm.toLowerCase()))
+    staff.subjects?.some(subject => 
+      subject.subject_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      subject.subject_code.toLowerCase().includes(searchTerm.toLowerCase())
+    )
   );
 
   const getRoleColor = (role: string) => {
@@ -212,15 +214,17 @@ export const StaffManagement: React.FC = () => {
                            </div>
                          </div>
                        </td>
-                       <td className="px-6 py-4 whitespace-nowrap">
-                         <div className="space-y-1">
-                           {staff.subject_name && staff.subject_code ? (
-                             <>
-                               <div className="text-sm font-medium text-gray-900">{staff.subject_name}</div>
-                               <div className="text-xs text-gray-500">Code: {staff.subject_code}</div>
-                             </>
+                       <td className="px-6 py-4">
+                         <div className="space-y-2">
+                           {staff.subjects && staff.subjects.length > 0 ? (
+                             staff.subjects.map((subject) => (
+                               <div key={subject.id} className="bg-gray-50 rounded p-2">
+                                 <div className="text-sm font-medium text-gray-900">{subject.subject_name}</div>
+                                 <div className="text-xs text-gray-500">Code: {subject.subject_code}</div>
+                               </div>
+                             ))
                            ) : (
-                             <div className="text-sm text-gray-400 italic">No subject assigned</div>
+                             <div className="text-sm text-gray-400 italic">No subjects assigned</div>
                            )}
                          </div>
                        </td>

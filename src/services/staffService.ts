@@ -1,5 +1,11 @@
 import { supabase } from '../lib/supabase';
 
+interface StaffSubject {
+  id: string;
+  subject_name: string;
+  subject_code: string;
+}
+
 export interface StaffMember {
   id: string;
   name: string;
@@ -11,8 +17,7 @@ export interface StaffMember {
   user_id: string;
   created_at: string;
   updated_at: string;
-  subject_name?: string;
-  subject_code?: string;
+  subjects: StaffSubject[];
 }
 
 export interface CreateStaffData {
@@ -23,6 +28,7 @@ export interface CreateStaffData {
   role: string;
   department_id: string;
   user_id: string;
+  subjects?: { name: string; code: string; }[];
 }
 
 export const staffService = {
@@ -77,8 +83,11 @@ export const staffService = {
   async getStaffById(id: string): Promise<StaffMember | null> {
     const { data, error } = await supabase
       .from('staff_details')
-      .select('*')
-      .eq('id', id)
+      .select(`
+        *,
+        staff_subjects (*)
+      `)
+      .eq('user_id', id)
       .single();
 
     if (error) {

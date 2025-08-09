@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Calendar, AlertTriangle, Clock } from 'lucide-react';
+import { X, Calendar, AlertTriangle } from 'lucide-react';
 import { Exam } from '../types';
 import { useExams } from '../context/ExamContext';
 import { useAuth } from '../context/AuthContext';
@@ -12,7 +12,6 @@ interface ExamSchedulerProps {
 
 export const ExamScheduler: React.FC<ExamSchedulerProps> = ({ exam, onClose, onSchedule }) => {
   const [selectedDate, setSelectedDate] = useState('');
-  const [selectedTime, setSelectedTime] = useState('10:00:00');
   const [conflict, setConflict] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { exams, scheduleExam } = useExams();
@@ -47,7 +46,8 @@ export const ExamScheduler: React.FC<ExamSchedulerProps> = ({ exam, onClose, onS
     if (selectedDate && !conflict?.includes('Conflict:') && user) {
       setLoading(true);
       try {
-        await scheduleExam(exam.id, selectedDate, selectedTime, user.id);
+        // Set a default morning session time since we're only scheduling by date
+        await scheduleExam(exam.id, selectedDate, user.id);
         onSchedule(exam.id, selectedDate);
         onClose();
       } catch (error) {
@@ -107,25 +107,7 @@ export const ExamScheduler: React.FC<ExamSchedulerProps> = ({ exam, onClose, onS
                 </p>
               </div>
 
-              {/* Time Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <Clock className="inline h-4 w-4 mr-1" />
-                  Select Exam Time
-                </label>
-                <select
-                  value={selectedTime}
-                  onChange={(e) => setSelectedTime(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="09:00:00">09:00 AM</option>
-                  <option value="10:00:00">10:00 AM</option>
-                  <option value="11:00:00">11:00 AM</option>
-                  <option value="14:00:00">02:00 PM</option>
-                  <option value="15:00:00">03:00 PM</option>
-                  <option value="16:00:00">04:00 PM</option>
-                </select>
-              </div>
+
 
             {/* Conflict Notice */}
             {conflict && (
@@ -156,15 +138,15 @@ export const ExamScheduler: React.FC<ExamSchedulerProps> = ({ exam, onClose, onS
 
 
 
-            {/* Exam Time Info */}
+            {/* Exam Info */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-start">
-                <Clock className="h-5 w-5 text-blue-600 mr-2 mt-0.5" />
+                <Calendar className="h-5 w-5 text-blue-600 mr-2 mt-0.5" />
                 <div>
                   <h4 className="text-sm font-medium text-blue-800">Exam Information</h4>
                   <p className="text-sm text-blue-700 mt-1">
-                    Duration: 08:00 AM to 09:30 AM<br />
-                    Students must be present by 07:45 AM
+                    Exams will be conducted in morning session.<br />
+                    Students must arrive on time.
                   </p>
                 </div>
               </div>
